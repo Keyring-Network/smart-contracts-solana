@@ -19,7 +19,7 @@ url = "https://api.apr.dev"
 
 [provider]
 cluster = "Localnet"
-wallet = "/home/sahil/.config/solana/id.json"
+wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "cargo test"
