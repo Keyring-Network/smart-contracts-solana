@@ -2,8 +2,13 @@
 This solana program is adaption of [solidity smart contracts](https://github.com/Keyring-Network/smart-contracts) and is base on Anchor framework.
 
 # Installation
-Install solana and anchor cli from the [official website](https://www.anchor-lang.com/docs/installation).
+Install solana (1.18.26) and anchor cli (0.29.0) from the [official website](https://www.anchor-lang.com/docs/installation).
 Ensure to install solana using the official documentation. The homebrew installation is not recommended and can cause an issue relating to `cargo-build-sbf` missing.
+
+```shell
+sh -c "$(curl -sSfL https://release.anza.xyz/v1.18.26/install)"
+cargo install --git https://github.com/coral-xyz/anchor --tag v0.29.0 anchor-cli
+```
 
 # Tests
 
