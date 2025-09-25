@@ -2,7 +2,6 @@ use anchor_client::anchor_lang::prelude::{Clock, Pubkey, System};
 use anchor_client::anchor_lang::Id;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_sdk::keccak;
-use anchor_client::solana_sdk::secp256k1_recover::Secp256k1Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::sysvar::clock;
 use anchor_client::Program;

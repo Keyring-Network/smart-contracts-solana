@@ -8,7 +8,6 @@ mod manage_role;
 mod register_key;
 mod revoke_key;
 mod unblacklist_entity;
-mod verify_rsa;
 
 use anchor_lang::prelude::*;
 use blacklist_entity::*;
@@ -22,7 +21,6 @@ use revoke_key::*;
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_security_txt::security_txt;
 use unblacklist_entity::*;
-use verify_rsa::*;
 
 #[cfg(not(feature = "no-entrypoint"))]
 security_txt! {
@@ -115,14 +113,5 @@ pub mod keyring_network {
         trading_address: Pubkey,
     ) -> Result<()> {
         do_check_credential(ctx, policy_id, trading_address)
-    }
-
-    pub fn verify_rsa(
-        ctx: Context<VerifyRsa>,
-        modulus: Vec<u8>,
-        signature: Vec<u8>,
-        message: Vec<u8>,
-    ) -> Result<()> {
-        do_verify_rsa(ctx, modulus, signature, message)
     }
 }

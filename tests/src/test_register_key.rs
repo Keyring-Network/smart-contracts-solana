@@ -39,7 +39,8 @@ fn register_key() {
     let (_, _, default_admin_role_pubkey) = init_program(&program, &payer, chain_id);
 
     let mut os_rng = rsa::rand_core::OsRng::default();
-    let secret_key = RsaPrivateKey::new(&mut os_rng, 1024).expect("Failed to generate RSA private key");
+    let exp: u64 = 3u64;
+    let secret_key = RsaPrivateKey::new_with_exp(&mut os_rng, 1024, &exp.into()).expect("Failed to generate RSA private key");
     let public_key = RsaPublicKey::from(&secret_key.clone());
     let key = public_key.n().to_bytes_be().to_vec();
     let key_hash = key.to_hash();

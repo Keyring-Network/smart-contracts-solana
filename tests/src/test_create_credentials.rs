@@ -20,7 +20,8 @@ use rand::rngs::OsRng;
 
 use rsa::pkcs1v15::SigningKey;
 use rsa::traits::PublicKeyParts;
-use rsa::{RsaPublicKey, RsaPrivateKey, sha2::Sha256, signature::{Signer as RsaSigner, SignatureEncoding}};
+use rsa::signature::{Signer as RsaSigner, SignatureEncoding};
+use rsa::{RsaPublicKey, RsaPrivateKey, sha2::Sha256};
 
 #[test]
 fn create_credentials() {
@@ -46,7 +47,8 @@ fn create_credentials() {
         init_program(&program, &payer, chain_id.clone());
 
     let mut os_rng = rsa::rand_core::OsRng::default();
-    let secret_key = RsaPrivateKey::new(&mut os_rng, 1024).expect("Failed to generate RSA private key");
+    let exp: u64 = 3u64;
+    let secret_key = RsaPrivateKey::new_with_exp(&mut os_rng, 1024, &exp.into()).expect("Failed to generate RSA private key");
     let signing_key = SigningKey::<Sha256>::new(secret_key.clone());
     let public_key = RsaPublicKey::from(&secret_key.clone());
     let key = public_key.n().to_bytes_be().to_vec();
