@@ -14,9 +14,11 @@ use anchor_client::{
 use keyring_network::common::types::{
     ChainId, EntityData, ToHash, BLACKLIST_MANAGER_ROLE, CURRENT_VERSION, KEY_MANAGER_ROLE,
 };
-use keyring_network::common::verify_auth_message::create_signature_payload;
+use keyring_network::common::verify_auth_message::pack_auth_message;
 use keyring_network::ID as program_id;
-use libsecp256k1::{sign, Message};
+use rsa::pkcs1v15::SigningKey;
+use rsa::traits::PublicKeyParts;
+use rsa::{RsaPublicKey, RsaPrivateKey, sha2::Sha256, signature::{Signer as RsaSigner, SignatureEncoding}};
 use rand::rngs::OsRng;
 
 #[test]
@@ -42,10 +44,12 @@ fn test_check_credential() {
     let (program_state_pubkey, _, default_admin_role_pubkey) =
         init_program(&program, &payer, chain_id.clone());
 
-    let mut os_rng = OsRng::default();
-    let secret_key = libsecp256k1::SecretKey::random(&mut os_rng);
-    let public_key = libsecp256k1::PublicKey::from_secret_key(&secret_key);
-    let key = public_key.serialize()[1..].to_vec();
+    let mut os_rng = rsa::rand_core::OsRng::default();
+    let exp: u64 = 3u64;
+    let secret_key = RsaPrivateKey::new_with_exp(&mut os_rng, 1024, &exp.into()).expect("Failed to generate RSA private key");
+    let signing_key = SigningKey::<Sha256>::new(secret_key.clone());
+    let public_key = RsaPublicKey::from(&secret_key.clone());
+    let key = public_key.n().to_bytes_be().to_vec();
     let key_hash = key.to_hash();
     let key_mapping_seeds = [
         b"keyring_program".as_ref(),
@@ -121,7 +125,7 @@ fn test_check_credential() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -130,11 +134,7 @@ fn test_check_credential() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -149,7 +149,7 @@ fn test_check_credential() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),

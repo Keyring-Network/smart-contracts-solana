@@ -14,10 +14,14 @@ use anchor_client::{
 use keyring_network::common::types::{
     ChainId, EntityData, ToHash, BLACKLIST_MANAGER_ROLE, CURRENT_VERSION, KEY_MANAGER_ROLE,
 };
-use keyring_network::common::verify_auth_message::create_signature_payload;
+use keyring_network::common::verify_auth_message::{pack_auth_message};
 use keyring_network::ID as program_id;
-use libsecp256k1::{sign, Message};
 use rand::rngs::OsRng;
+
+use rsa::pkcs1v15::SigningKey;
+use rsa::traits::PublicKeyParts;
+use rsa::signature::{Signer as RsaSigner, SignatureEncoding};
+use rsa::{RsaPublicKey, RsaPrivateKey, sha2::Sha256};
 
 #[test]
 fn create_credentials() {
@@ -42,10 +46,12 @@ fn create_credentials() {
     let (program_state_pubkey, _, default_admin_role_pubkey) =
         init_program(&program, &payer, chain_id.clone());
 
-    let mut os_rng = OsRng::default();
-    let secret_key = libsecp256k1::SecretKey::random(&mut os_rng);
-    let public_key = libsecp256k1::PublicKey::from_secret_key(&secret_key);
-    let key = public_key.serialize()[1..].to_vec();
+    let mut os_rng = rsa::rand_core::OsRng::default();
+    let exp: u64 = 3u64;
+    let secret_key = RsaPrivateKey::new_with_exp(&mut os_rng, 1024, &exp.into()).expect("Failed to generate RSA private key");
+    let signing_key = SigningKey::<Sha256>::new(secret_key.clone());
+    let public_key = RsaPublicKey::from(&secret_key.clone());
+    let key = public_key.n().to_bytes_be().to_vec();
     let key_hash = key.to_hash();
     let key_mapping_seeds = [
         b"keyring_program".as_ref(),
@@ -136,7 +142,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -145,11 +151,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     // Modify any element from auth message can lead to failure
     let valid_until = timestamp + 40;
@@ -167,7 +169,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -190,7 +192,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -199,11 +201,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -218,7 +216,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -241,7 +239,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -250,11 +248,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -269,7 +263,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -280,7 +274,7 @@ fn create_credentials() {
     // If we use different chain_id then one in program state create_credentials will not work
     let cost = 21 * LAMPORTS_PER_SOL;
     let dummy_chain_id = generate_random_chain_id(&mut rng);
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(dummy_chain_id.clone()).unwrap(),
@@ -289,11 +283,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -308,7 +298,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -333,7 +323,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -342,11 +332,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -361,7 +347,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -402,7 +388,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -411,11 +397,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -430,7 +412,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -492,7 +474,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -538,7 +520,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),
@@ -575,7 +557,7 @@ fn create_credentials() {
     let (entity_mapping_pubkey, _) =
         Pubkey::find_program_address(&entity_mapping_seeds, &program.id());
 
-    let packed_message = create_signature_payload(
+    let packed_message = pack_auth_message(
         convert_pubkey_to_address(&trading_address),
         policy_id,
         ChainId::new(chain_id.clone()).unwrap(),
@@ -584,11 +566,7 @@ fn create_credentials() {
         backdoor.clone(),
     )
     .unwrap();
-    let message = Message::parse_slice(packed_message.as_ref()).unwrap();
-    let (signature, recovery_id) = sign(&message, &secret_key);
-    let serialized_recovery_id = recovery_id.serialize() + 27u8;
-    let mut serialized_signature = signature.serialize().to_vec();
-    serialized_signature.push(serialized_recovery_id);
+    let signature = signing_key.sign(packed_message.as_ref()).to_vec();
 
     program
         .request()
@@ -603,7 +581,7 @@ fn create_credentials() {
             key: key.clone(),
             policy_id,
             trading_address,
-            signature: serialized_signature.clone(),
+            signature: signature.clone(),
             valid_until,
             cost,
             backdoor: backdoor.clone(),

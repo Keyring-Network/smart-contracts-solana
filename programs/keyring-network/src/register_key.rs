@@ -3,7 +3,6 @@ use crate::common::types::{
     KeyEntry, KeyRegistry, Role, ToHash, CURRENT_VERSION, KEY_MANAGER_ROLE, MAX_ACTIVE_KEYS,
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
 use anchor_lang::Accounts;
 
 #[event]
@@ -53,7 +52,7 @@ pub fn do_register_key(
     let clock: Clock = Clock::get()?;
     let time_stamp = clock.unix_timestamp;
 
-    if key.len() != SECP256K1_PUBLIC_KEY_LENGTH {
+    if key.len() != 1024 / 8 {
         return Err(error!(KeyringError::ErrInvalidPubkeyLength));
     }
 

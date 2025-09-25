@@ -19,5 +19,3 @@ mod test_unblacklist_entity;
 
 #[cfg(test)]
 mod test_check_credential;
-#[cfg(test)]
-mod test_verify_auth_message;
