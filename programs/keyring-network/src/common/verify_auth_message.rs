@@ -1,42 +1,7 @@
 use crate::common::error::KeyringError;
 use crate::common::types::ChainId;
-use anchor_lang::solana_program::keccak;
-use anchor_lang::solana_program::keccak::Hash;
-use anchor_lang::solana_program::secp256k1_recover::{
-    secp256k1_recover, Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH,
-};
+use crate::common::rsa::verify_rsa_signature;
 use anchor_lang::{error, Result};
-
-pub const ETH_SIGNED_MESSAGE_PREFIX: &[u8] = b"\x19Ethereum Signed Message:\n32";
-
-pub fn split_signature(signature_data: Vec<u8>) -> Result<(Vec<u8>, u8)> {
-    if signature_data.len() != SECP256K1_SIGNATURE_LENGTH + 1 {
-        return Err(error!(KeyringError::ErrInvalidSignatureLength));
-    }
-
-    let mut recovery_id = *signature_data
-        .last()
-        .expect("We already checked that the length is 65 above; qed");
-
-    // We expect recovery id similar to ethereum rpc
-    if recovery_id >= 27 && recovery_id < 27 + 4 {
-        recovery_id = recovery_id - 27;
-    } else {
-        return Err(error!(KeyringError::ErrInvalidRecoveryID));
-    }
-
-    let signature = signature_data[0..64].to_vec();
-
-    Ok((signature, recovery_id))
-}
-
-fn parse_publickey(key: Vec<u8>) -> Result<Secp256k1Pubkey> {
-    if key.len() != SECP256K1_PUBLIC_KEY_LENGTH {
-        return Err(error!(KeyringError::ErrInvalidPubkeyLength));
-    }
-
-    Ok(Secp256k1Pubkey::new(key.as_slice()))
-}
 
 // Verify auth message
 pub fn verify_auth_message(
@@ -50,30 +15,6 @@ pub fn verify_auth_message(
     backdoor: Vec<u8>,
 ) -> Result<bool> {
     // Pack auth message
-    let provided_signer = parse_publickey(key)?;
-    let message_hash = create_signature_payload(
-        trading_address,
-        policy_id,
-        chain_id,
-        valid_until,
-        cost,
-        backdoor,
-    )?;
-    let (signature, recovery_id) = split_signature(signature_data)?;
-    let recovered_pubkey = secp256k1_recover(message_hash.as_ref(), recovery_id, &signature)
-        .map_err(|_| error!(KeyringError::ErrInvalidSignature))?;
-
-    Ok(recovered_pubkey.eq(&provided_signer))
-}
-
-pub fn create_signature_payload(
-    trading_address: Vec<u8>,
-    policy_id: u64,
-    chain_id: ChainId,
-    valid_until: u64,
-    cost: u64,
-    backdoor: Vec<u8>,
-) -> Result<Hash> {
     let packed_message = pack_auth_message(
         trading_address,
         policy_id,
@@ -82,18 +23,8 @@ pub fn create_signature_payload(
         cost,
         backdoor,
     )?;
-
-    let message_hash = keccak::hash(packed_message.as_slice());
-    let eth_signed_message_hash = convert_to_eth_signed_message_hash(message_hash);
-
-    Ok(eth_signed_message_hash)
-}
-
-pub fn convert_to_eth_signed_message_hash(message_hash: Hash) -> Hash {
-    let mut buffer = vec![];
-    buffer.extend_from_slice(&ETH_SIGNED_MESSAGE_PREFIX);
-    buffer.extend_from_slice(message_hash.as_ref());
-    keccak::hash(buffer.as_slice())
+    
+    verify_rsa_signature(key, signature_data, packed_message)
 }
 
 // Packs auth message data

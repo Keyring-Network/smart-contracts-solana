@@ -128,11 +128,6 @@ pub fn convert_pubkey_to_address(pubkey: &Pubkey) -> Vec<u8> {
     hashed_pubkey[..20].to_vec()
 }
 
-pub fn convert_secp_pubkey_to_address(pubkey: &Secp256k1Pubkey) -> Vec<u8> {
-    let hashed_pubkey = keccak::hash(&pubkey.to_bytes()).to_bytes();
-    hashed_pubkey[12..].to_vec()
-}
-
 pub fn generate_random_chain_id<R: RngCore>(rng: &mut R) -> Vec<u8> {
     let mut length = rng.next_u64() % CHAIN_ID_MAX_SIZE as u64;
     if length < CHAIN_ID_MIN_SIZE as u64 {

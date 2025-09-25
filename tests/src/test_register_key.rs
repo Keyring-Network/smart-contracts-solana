@@ -13,6 +13,9 @@ use keyring_network::common::types::{KeyRegistry, ToHash, KEY_MANAGER_ROLE};
 use keyring_network::ID as program_id;
 use rand::rngs::OsRng;
 
+use rsa::traits::PublicKeyParts;
+use rsa::{RsaPublicKey, RsaPrivateKey};
+
 #[test]
 fn register_key() {
     let anchor_rpc_client = RpcClient::new(Cluster::Localnet.url());
@@ -35,10 +38,10 @@ fn register_key() {
     let chain_id = generate_random_chain_id(&mut rng);
     let (_, _, default_admin_role_pubkey) = init_program(&program, &payer, chain_id);
 
-    let mut os_rng = OsRng::default();
-    let secret_key = libsecp256k1::SecretKey::random(&mut os_rng);
-    let public_key = libsecp256k1::PublicKey::from_secret_key(&secret_key);
-    let key = public_key.serialize()[1..].to_vec();
+    let mut os_rng = rsa::rand_core::OsRng::default();
+    let secret_key = RsaPrivateKey::new(&mut os_rng, 1024).expect("Failed to generate RSA private key");
+    let public_key = RsaPublicKey::from(&secret_key.clone());
+    let key = public_key.n().to_bytes_be().to_vec();
     let key_hash = key.to_hash();
     let key_mapping_seeds = [
         b"keyring_program".as_ref(),

@@ -9,7 +9,7 @@
     "manageBlacklist": "npx tsx scripts/manageBlacklist.ts"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0"
+    "@coral-xyz/anchor": "0.31.1"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
